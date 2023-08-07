@@ -496,16 +496,18 @@ class _FlutterLocationPickerState extends State<FlutterLocationPicker> with Tick
         if (options.isNotEmpty) {
           _animatedMapMove(LatLng(options.first.latitude, options.first.longitude), 18.0);
           setNameCurrentPos(options.first.latitude, options.first.longitude);
-        } else {
-          _determinePosition().then((currentPosition) {
-            initPosition = LatLng(currentPosition.latitude, currentPosition.longitude);
-
-            setNameCurrentPos(currentPosition.latitude, currentPosition.longitude);
-            _animatedMapMove(LatLng(currentPosition.latitude, currentPosition.longitude), 18.0);
-          }, onError: (e) => onError(e)).whenComplete(() => setState(() {
-                isLoading = false;
-              }));
         }
+        //if no result no need do any action
+        // else {
+        //   _determinePosition().then((currentPosition) {
+        //     initPosition = LatLng(currentPosition.latitude, currentPosition.longitude);
+        //
+        //     setNameCurrentPos(currentPosition.latitude, currentPosition.longitude);
+        //     _animatedMapMove(LatLng(currentPosition.latitude, currentPosition.longitude), 18.0);
+        //   }, onError: (e) => onError(e)).whenComplete(() => setState(() {
+        //         isLoading = false;
+        //       }));
+        // }
       } on Exception catch (e) {
         onError(e);
       } finally {
