@@ -9,8 +9,8 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' as intl;
 import 'package:latlong2/latlong.dart';
 
-import 'Widgets/copyright_osm_widget.dart';
-import 'Widgets/wide_button.dart';
+import 'widgets/copyright_osm_widget.dart';
+import 'widgets/wide_button.dart';
 import 'classes.dart';
 
 /// Principal widget to show Flutter map using osm api with pick up location marker and search bar.
@@ -42,6 +42,10 @@ class FlutterLocationPicker extends StatefulWidget {
   ///
   final String selectLocationButtonText;
 
+  /// [selectLocationButtonLeadingIcon] : (Widget) set the leading icon of the select location button
+  ///
+  final Widget? selectLocationButtonLeadingIcon;
+
   /// [initZoom] : (double) set initialized zoom in specific location  (default = 17)
   ///
   final double initZoom;
@@ -57,6 +61,10 @@ class FlutterLocationPicker extends StatefulWidget {
   /// [maxZoomLevel] : (double) set default zoom value (default = 18.4)
   ///
   final double maxZoomLevel;
+
+  /// [maxBounds] : (LatLngBounds?) set default max bounds of the map (default = null)
+  ///
+  final LatLngBounds? maxBounds;
 
   /// [loadingWidget] : (Widget) show custom  widget until the map finish initialization
   ///
@@ -94,10 +102,6 @@ class FlutterLocationPicker extends StatefulWidget {
   ///
   final ButtonStyle? selectLocationButtonStyle;
 
-  /// [selectLocationTextColor] : (Color) change the color of the select Location text
-  ///
-  final Color? selectLocationTextColor;
-
   /// [selectLocationButtonWidth] : (double) change the width of the select Location button
   ///
   final double? selectLocationButtonWidth;
@@ -105,6 +109,10 @@ class FlutterLocationPicker extends StatefulWidget {
   /// [selectLocationButtonHeight] : (double) change the height of the select Location button
   ///
   final double? selectLocationButtonHeight;
+
+  /// [selectedLocationButtonTextstyle] : set the style of the button text (default = TextStyle(fontSize: 20))
+  ///
+  final TextStyle selectedLocationButtonTextstyle;
 
   /// [selectLocationButtonPositionTop] : (double) change the top position of the select Location button (default = null)
   ///
@@ -170,7 +178,7 @@ class FlutterLocationPicker extends StatefulWidget {
   ///
   final Color? locationButtonBackgroundColor;
 
-  /// [markerIcon] : (IconData) change the marker icon of the map (default = Icon(icons.location_on, color: Colors.red, size: 50))
+  /// [markerIcon] : (IconData) change the marker icon of the map (default = Icon(icons.location_on, color: Colors.blue, size: 50))
   ///
   final Widget? markerIcon;
 
@@ -216,12 +224,14 @@ class FlutterLocationPicker extends StatefulWidget {
   const FlutterLocationPicker({
     Key? key,
     required this.onPicked,
+    this.selectedLocationButtonTextstyle = const TextStyle(fontSize: 20),
     this.onError,
     this.initPosition,
     this.stepZoom = 1,
     this.initZoom = 17,
     this.minZoomLevel = 2,
     this.maxZoomLevel = 18.4,
+    this.maxBounds,
     this.urlTemplate = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     this.mapLanguage = 'en',
     this.selectLocationButtonText = 'Set Current Location',
@@ -232,7 +242,6 @@ class FlutterLocationPicker extends StatefulWidget {
     this.showSelectLocationButton = true,
     this.showCurrentLocationPointer = true,
     this.selectLocationButtonStyle,
-    this.selectLocationTextColor,
     this.selectLocationButtonWidth,
     this.selectLocationButtonHeight,
     this.selectLocationButtonPositionTop,
@@ -264,6 +273,7 @@ class FlutterLocationPicker extends StatefulWidget {
     this.contributorBadgeForOSMPositionBottom = -6,
     this.initAddress,
     Widget? loadingWidget,
+    this.selectLocationButtonLeadingIcon,
   })  : loadingWidget = loadingWidget ?? const CircularProgressIndicator(),
         super(key: key);
 
@@ -380,24 +390,15 @@ class _FlutterLocationPickerState extends State<FlutterLocationPicker> with Tick
   ///   longitude (double): The longitude of the location.
   void setNameCurrentPos(double latitude, double longitude) async {
     var client = http.Client();
-    setState(() {
-      isLoading = true;
-    });
     String url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=$latitude&lon=$longitude&zoom=18&addressdetails=1&accept-language=${widget.mapLanguage}';
 
     try {
-      var response = await client.post(Uri.parse(url));
+      var response = await client.get(Uri.parse(url));
       var decodedResponse = jsonDecode(utf8.decode(response.bodyBytes)) as Map<dynamic, dynamic>;
-      _searchController.text = decodedResponse['display_name'] ?? "Search Location";
-      setState(() {
-        isLoading = false;
-      });
+      _searchController.text = decodedResponse['display_name'] ?? "This Location is not accessible";
+      setState(() {});
     } on Exception catch (e) {
       onError(e);
-    } finally {
-      setState(() {
-        isLoading = false;
-      });
     }
   }
 
@@ -410,11 +411,19 @@ class _FlutterLocationPickerState extends State<FlutterLocationPicker> with Tick
     LatLong center = LatLong(_mapController.center.latitude, _mapController.center.longitude);
     var client = http.Client();
     String url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=${_mapController.center.latitude}&lon=${_mapController.center.longitude}&zoom=18&addressdetails=1&accept-language=${widget.mapLanguage}';
-
-    var response = await client.post(Uri.parse(url));
+    var response = await client.get(Uri.parse(url));
     var decodedResponse = jsonDecode(utf8.decode(response.bodyBytes)) as Map<dynamic, dynamic>;
-    String displayName = decodedResponse['display_name'];
-    return PickedData(center, displayName, decodedResponse['address']);
+    String displayName = "This Location is not accessible";
+    Map<String, dynamic> address;
+
+    if (decodedResponse['display_name'] != null) {
+      displayName = decodedResponse['display_name'];
+      address = decodedResponse['address'];
+    } else {
+      center = const LatLong(0, 0);
+      address = decodedResponse as Map<String, dynamic>;
+    }
+    return PickedData(center, displayName, address);
   }
 
   @override
@@ -570,7 +579,11 @@ class _FlutterLocationPickerState extends State<FlutterLocationPicker> with Tick
                   focusedBorder: widget.searchbarInputFocusBorderp ?? inputFocusBorder,
                   hintStyle: TextStyle(color: widget.searchBarHintColor),
                   suffixIcon: IconButton(
-                    onPressed: () => _searchController.clear(),
+                    onPressed: () {
+                      _searchController.clear();
+                      _options.clear();
+                      setState(() {});
+                    },
                     icon: Icon(
                       Icons.clear,
                       color: widget.searchBarTextColor,
@@ -645,9 +658,9 @@ class _FlutterLocationPickerState extends State<FlutterLocationPicker> with Tick
               heroTag: "btn3",
               backgroundColor: widget.locationButtonBackgroundColor,
               onPressed: () async {
-                setState(() {
-                  isLoading = true;
-                });
+                // setState(() {
+                //   isLoading = true;
+                // });
                 _determinePosition().then((currentPosition) {
                   _animatedMapMove(LatLng(currentPosition.latitude, currentPosition.longitude), 18);
                   setNameCurrentPos(currentPosition.latitude, currentPosition.longitude);
@@ -663,7 +676,13 @@ class _FlutterLocationPickerState extends State<FlutterLocationPicker> with Tick
   Widget _buildMap() {
     return Positioned.fill(
         child: FlutterMap(
-      options: MapOptions(center: initPosition, zoom: initPosition != null ? widget.initZoom : widget.minZoomLevel, maxZoom: widget.maxZoomLevel, minZoom: widget.minZoomLevel),
+      options: MapOptions(
+        center: initPosition,
+        zoom: initPosition != null ? widget.initZoom : widget.minZoomLevel,
+        maxZoom: widget.maxZoomLevel,
+        minZoom: widget.minZoomLevel,
+        maxBounds: widget.maxBounds,
+      ),
       mapController: _mapController,
       children: [
         TileLayer(
@@ -694,7 +713,7 @@ class _FlutterLocationPickerState extends State<FlutterLocationPicker> with Tick
           child: widget.markerIcon ??
               const Icon(
                 Icons.location_pin,
-                color: Colors.red,
+                color: Colors.blue,
                 size: 50,
               ),
         ),
@@ -713,6 +732,7 @@ class _FlutterLocationPickerState extends State<FlutterLocationPicker> with Tick
           padding: const EdgeInsets.all(8.0),
           child: WideButton(
             widget.selectLocationButtonText,
+            leadingIcon: widget.selectLocationButtonLeadingIcon,
             onPressed: () async {
               setState(() {
                 isLoading = true;
@@ -724,7 +744,7 @@ class _FlutterLocationPickerState extends State<FlutterLocationPicker> with Tick
                   }));
             },
             style: widget.selectLocationButtonStyle,
-            textColor: widget.selectLocationTextColor,
+            textStyle: widget.selectedLocationButtonTextstyle,
             width: widget.selectLocationButtonWidth,
             height: widget.selectLocationButtonHeight,
           ),
@@ -735,30 +755,32 @@ class _FlutterLocationPickerState extends State<FlutterLocationPicker> with Tick
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Stack(
-        children: [
-          _buildMap(),
-          if (!isLoading) _buildMarker(),
-          if (isLoading) Center(child: widget.loadingWidget!),
-          _buildControllerButtons(),
-          if (widget.showSearchBar) _buildSearchBar(),
-          if (widget.showContributorBadgeForOSM) ...[
-            Positioned(
-              top: widget.contributorBadgeForOSMPositionTop,
-              bottom: widget.contributorBadgeForOSMPositionBottom,
-              left: widget.contributorBadgeForOSMPositionLeft,
-              right: widget.contributorBadgeForOSMPositionRight,
-              child: CopyrightOSMWidget(
-                badgeText: widget.contributorBadgeForOSMText,
-                badgeTextColor: widget.contributorBadgeForOSMTextColor,
-                badgeColor: widget.contributorBadgeForOSMColor,
+    return Stack(
+      children: [
+        _buildMap(),
+        if (!isLoading) _buildMarker(),
+        if (isLoading) Center(child: widget.loadingWidget!),
+        SafeArea(
+          child: Stack(children: [
+            _buildControllerButtons(),
+            if (widget.showSearchBar) _buildSearchBar(),
+            if (widget.showContributorBadgeForOSM) ...[
+              Positioned(
+                top: widget.contributorBadgeForOSMPositionTop,
+                bottom: widget.contributorBadgeForOSMPositionBottom,
+                left: widget.contributorBadgeForOSMPositionLeft,
+                right: widget.contributorBadgeForOSMPositionRight,
+                child: CopyrightOSMWidget(
+                  badgeText: widget.contributorBadgeForOSMText,
+                  badgeTextColor: widget.contributorBadgeForOSMTextColor,
+                  badgeColor: widget.contributorBadgeForOSMColor,
+                ),
               ),
-            ),
-          ],
-          if (widget.showSelectLocationButton) _buildSelectButton(),
-        ],
-      ),
+            ],
+            if (widget.showSelectLocationButton) _buildSelectButton(),
+          ]),
+        )
+      ],
     );
   }
 }
