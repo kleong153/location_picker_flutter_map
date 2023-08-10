@@ -489,25 +489,23 @@ class _FlutterLocationPickerState extends State<FlutterLocationPicker> with Tick
       var client = http.Client();
       try {
         String url = 'https://nominatim.openstreetmap.org/search?q=${widget.initAddress}&format=json&polygon_geojson=1&addressdetails=1&accept-language=${widget.mapLanguage}';
-        var response = await client.post(Uri.parse(url));
+        var response = await client.get(Uri.parse(url));
         var decodedResponse = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
         //_options = decodedResponse.map((e) => OSMdata(displayname: e['display_name'], latitude: double.parse(e['lat']), longitude: double.parse(e['lon']))).toList();
         var options = decodedResponse.map((e) => OSMdata(displayname: e['display_name'], latitude: double.parse(e['lat']), longitude: double.parse(e['lon']))).toList();
         if (options.isNotEmpty) {
           _animatedMapMove(LatLng(options.first.latitude, options.first.longitude), 18.0);
           setNameCurrentPos(options.first.latitude, options.first.longitude);
+        } else {
+          _determinePosition().then((currentPosition) {
+            initPosition = LatLng(currentPosition.latitude, currentPosition.longitude);
+
+            setNameCurrentPos(currentPosition.latitude, currentPosition.longitude);
+            _animatedMapMove(LatLng(currentPosition.latitude, currentPosition.longitude), 18.0);
+          }, onError: (e) => onError(e)).whenComplete(() => setState(() {
+                isLoading = false;
+              }));
         }
-        //if no result no need do any action
-        // else {
-        //   _determinePosition().then((currentPosition) {
-        //     initPosition = LatLng(currentPosition.latitude, currentPosition.longitude);
-        //
-        //     setNameCurrentPos(currentPosition.latitude, currentPosition.longitude);
-        //     _animatedMapMove(LatLng(currentPosition.latitude, currentPosition.longitude), 18.0);
-        //   }, onError: (e) => onError(e)).whenComplete(() => setState(() {
-        //         isLoading = false;
-        //       }));
-        // }
       } on Exception catch (e) {
         onError(e);
       } finally {
@@ -588,7 +586,7 @@ class _FlutterLocationPickerState extends State<FlutterLocationPicker> with Tick
                     var client = http.Client();
                     try {
                       String url = 'https://nominatim.openstreetmap.org/search?q=$value&format=json&polygon_geojson=1&addressdetails=1&accept-language=${widget.mapLanguage}';
-                      var response = await client.post(Uri.parse(url));
+                      var response = await client.get(Uri.parse(url));
                       var decodedResponse = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
                       _options = decodedResponse.map((e) => OSMdata(displayname: e['display_name'], latitude: double.parse(e['lat']), longitude: double.parse(e['lon']))).toList();
                       setState(() {});
